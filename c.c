@@ -237,5 +237,5 @@ int main() {
     } while (choice != 10);
 
     return 0;
-}# Banking-Management-system
-This program is a banking management system developed using the C programming language
+// }#Banking-Management-system
+// This program is a banking management system developed using the C programming language
