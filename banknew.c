@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 
+/* ---------- STRUCTURES ---------- */
 struct bank {
     int accno;
     int pin;
@@ -7,8 +9,75 @@ struct bank {
     int active;     // 1 = active, 0 = deleted
 };
 
+struct credit {
+    int accno;
+    float amount;
+    char type[15];   // Deposit / Withdraw / Transfer
+};
+
+/* ---------- GLOBAL DATA ---------- */
 struct bank b[10];
 int n = 0;
+
+/* ---------- FUNCTION DECLARATIONS ---------- */
+void loadClients();
+void saveClients();
+void saveAccountsText();
+void saveCredit(int accno, float amt, char type[]);
+
+int findAccount(int acc);
+
+/* ---------- FILE FUNCTIONS ---------- */
+
+/* Load client.dat data into array */
+void loadClients() {
+    FILE *fp = fopen("client.dat", "rb");
+    if (fp == NULL) return;
+
+    n = fread(b, sizeof(struct bank), 10, fp);
+    fclose(fp);
+}
+
+/* Save array data into client.dat */
+void saveClients() {
+    FILE *fp = fopen("client.dat", "wb");
+    fwrite(b, sizeof(struct bank), n, fp);
+    fclose(fp);
+
+    saveAccountsText();   // also update text file
+}
+
+/* Save readable account details into accounts.txt */
+void saveAccountsText() {
+    FILE *fp = fopen("accounts.txt", "w");
+    int i;
+
+    fprintf(fp, "ACCOUNT SUMMARY\n");
+    fprintf(fp, "-------------------------\n");
+
+    for (i = 0; i < n; i++) {
+        if (b[i].active == 1) {
+            fprintf(fp, "Acc No: %d | Balance: %.2f\n",
+                    b[i].accno, b[i].balance);
+        }
+    }
+    fclose(fp);
+}
+
+/* Save transaction into credit.dat */
+void saveCredit(int accno, float amt, char type[]) {
+    FILE *fp = fopen("credit.dat", "ab");
+    struct credit c;
+
+    c.accno = accno;
+    c.amount = amt;
+    sprintf(c.type, "%s", type);
+
+    fwrite(&c, sizeof(struct credit), 1, fp);
+    fclose(fp);
+}
+
+/* ---------- LOGIC FUNCTIONS ---------- */
 
 /* Find account index */
 int findAccount(int acc) {
@@ -34,10 +103,11 @@ void create() {
     b[n].active = 1;
     n++;
 
+    saveClients();
     printf("Account Created Successfully\n");
 }
 
-/* Deposit */
+/* Deposit Money */
 void deposit() {
     int acc, i;
     float amt;
@@ -55,10 +125,13 @@ void deposit() {
     scanf("%f", &amt);
 
     b[i].balance += amt;
+    saveCredit(acc, amt, "Deposit");
+    saveClients();
+
     printf("Deposit Successful\n");
 }
 
-/* Withdraw */
+/* Withdraw Money */
 void withdraw() {
     int acc, i;
     float amt;
@@ -75,12 +148,16 @@ void withdraw() {
     printf("Enter Amount: ");
     scanf("%f", &amt);
 
-    if (amt > b[i].balance)
+    if (amt > b[i].balance) {
         printf("Insufficient Balance\n");
-    else {
-        b[i].balance -= amt;
-        printf("Withdraw Successful\n");
+        return;
     }
+
+    b[i].balance -= amt;
+    saveCredit(acc, amt, "Withdraw");
+    saveClients();
+
+    printf("Withdraw Successful\n");
 }
 
 /* Check Balance */
@@ -96,7 +173,7 @@ void checkBalance() {
         return;
     }
 
-    printf("Balance: %.2f\n", b[i].balance);
+    printf("Available Balance: %.2f\n", b[i].balance);
 }
 
 /* Change PIN */
@@ -116,7 +193,9 @@ void changePIN() {
     scanf("%d", &newpin);
 
     b[i].pin = newpin;
-    printf("PIN Changed\n");
+    saveClients();
+
+    printf("PIN Changed Successfully\n");
 }
 
 /* Transfer Money */
@@ -126,6 +205,7 @@ void transfer() {
 
     printf("From Account: ");
     scanf("%d", &from);
+
     printf("To Account: ");
     scanf("%d", &to);
 
@@ -148,6 +228,9 @@ void transfer() {
     b[i].balance -= amt;
     b[j].balance += amt;
 
+    saveCredit(from, amt, "Transfer");
+    saveClients();
+
     printf("Transfer Successful\n");
 }
 
@@ -168,22 +251,6 @@ void miniStatement() {
     printf("Balance: %.2f\n", b[i].balance);
 }
 
-/* Unlock Account (simple) */
-void unlock() {
-    int acc, i;
-
-    printf("Enter Account Number: ");
-    scanf("%d", &acc);
-
-    i = findAccount(acc);
-    if (i == -1) {
-        printf("Account Not Found\n");
-        return;
-    }
-
-    printf("Account Unlocked\n");
-}
-
 /* Delete Account */
 void deleteAccount() {
     int acc, i;
@@ -198,12 +265,16 @@ void deleteAccount() {
     }
 
     b[i].active = 0;
-    printf("Account Deleted\n");
+    saveClients();
+
+    printf("Account Deleted Successfully\n");
 }
 
-/* MAIN */
+/* ---------- MAIN ---------- */
 int main() {
     int choice;
+
+    loadClients();   // load data at start
 
     do {
         printf("\n------ BANK MENU ------");
@@ -214,10 +285,9 @@ int main() {
         printf("\n5. Change PIN");
         printf("\n6. Transfer Money");
         printf("\n7. Mini Statement");
-        printf("\n8. Unlock Account");
-        printf("\n9. Delete Account");
-        printf("\n10. Exit");
-        printf("\nEnter choice: ");
+        printf("\n8. Delete Account");
+        printf("\n9. Exit");
+        printf("\nEnter Choice: ");
         scanf("%d", &choice);
 
         switch (choice) {
@@ -227,15 +297,12 @@ int main() {
             case 4: checkBalance(); break;
             case 5: changePIN(); break;
             case 6: transfer(); break;
-
             case 7: miniStatement(); break;
-            case 8: unlock(); break;
-            case 9: deleteAccount(); break;
-            case 10: printf("Thank You!\n"); break;
+            case 8: deleteAccount(); break;
+            case 9: printf("Thank You!\n"); break;
             default: printf("Invalid Choice\n");
         }
-    } while (choice != 10);
+    } while (choice != 9);
 
     return 0;
-// }#Banking-Management-system
-// This program is a banking management system developed using the C programming language
+}
